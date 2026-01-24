@@ -1,7 +1,7 @@
 import Elysia, { t } from "elysia";
 
 const baseResponse = t.Object({
-    status: t.Number(),
+    status: t.String(),
     message: t.Optional(
         t.String()
     ),

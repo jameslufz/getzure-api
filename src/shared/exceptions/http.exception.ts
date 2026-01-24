@@ -3,7 +3,7 @@ export class HttpException extends Error
     constructor
     (
         public message: string,
-        public statusCode: number,
+        public statusCode: string,
         public httpStatusCode: number,
     )
     {
@@ -13,7 +13,7 @@ export class HttpException extends Error
 
 export class BadRequestException extends HttpException
 {
-    constructor(message: string, statusCode: number)
+    constructor(message: string, statusCode: string)
     {
         super(message, statusCode, 400)
     }
@@ -21,7 +21,7 @@ export class BadRequestException extends HttpException
 
 export class UnprocessableContentException extends HttpException
 {
-    constructor(message: string, statusCode: number)
+    constructor(message: string, statusCode: string)
     {
         super(message, statusCode, 422)
     }
@@ -29,7 +29,7 @@ export class UnprocessableContentException extends HttpException
 
 export class InternalServerErrorException extends HttpException
 {
-    constructor(message: string, statusCode: number)
+    constructor(message: string, statusCode: string)
     {
         super(message, statusCode, 500)
     }

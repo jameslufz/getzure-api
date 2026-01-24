@@ -3,6 +3,7 @@ import { HttpException } from "./http.exception";
 import { ElysiaCookie } from "elysia/dist/cookies";
 import type { TObject } from "@sinclair/typebox"
 import { TBaseResponse } from "../models/response.model";
+import { ReplyError } from "ioredis"
 
 export default (error: TError, set: TSet ) =>
 {
@@ -16,17 +17,37 @@ export default (error: TError, set: TSet ) =>
             const [property] = Object.values(properties)
 
             return {
-                status: 1001,
+                status: error.valueError.schema.code ?? "ERR_PARAMS",
                 message: (property.error ? property.error.toString() : undefined),
             } satisfies TBaseResponse
         }
         else if('error' in error.valueError.schema)
         {
             return {
-                status: 1001,
+                status: error.valueError.schema.code ?? "ERR_PARAMS",
                 message: (error.valueError.schema.error ? error.valueError.schema.error.toString() : undefined),
             } satisfies TBaseResponse
         }
+    }
+
+    if('sql' in error)
+    {
+        const sqlMessage = ('sqlMessage' in error ? error.sqlMessage : "-")
+        console.log(`\x1b[33m[${new Date().toLocaleString()}]\x1b[31m[ERROR] \x1b[0m${sqlMessage}`)
+
+        return {
+            status: "INT_ERR_QC",
+            message: `มีบางอย่างผิดพลาด โปรดติดต่อผู้ดูแลระบบ`,
+        } satisfies TBaseResponse
+    }
+
+    if(error instanceof ReplyError)
+    {
+        console.log(`\x1b[33m[${new Date().toLocaleString()}]\x1b[31m[ERROR] \x1b[0m${error.message}`)
+        return {
+            status: "INT_ERR_RD",
+            message: `มีบางอย่างผิดพลาด โปรดติดต่อผู้ดูแลระบบ`,
+        } satisfies TBaseResponse
     }
 
     if(error instanceof HttpException)

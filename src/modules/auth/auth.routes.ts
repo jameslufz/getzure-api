@@ -1,8 +1,8 @@
-import { Elysia, t } from "elysia";
-import * as authHandler from "./auth.handler"
-import AuthModels from "./auth.model";
+import { Elysia } from "elysia";
+import * as authHandler from "./auth.handlers"
+import AuthModels from "./auth.models";
 import { RouteContext } from "@/shared/types/context";
 
 export const authRoute = new Elysia<"/auth", RouteContext>({ prefix: "/auth" })
 .use(AuthModels)
-.post("/signup", ({ body, db }) => authHandler.regsiter(db, body), { body: 'signupBody' })
+.get("/otp/:phoneNumber", ({ params, db, redis }) => authHandler.getOtp(db, redis, params), { params: "getOtpParam" })

@@ -2,7 +2,7 @@ import { HTTPHeaders, StatusMap, ValidationError } from "elysia";
 import { HttpException } from "./http.exception";
 import { ElysiaCookie } from "elysia/dist/cookies";
 import type { TObject } from "@sinclair/typebox"
-import { TBaseResponse } from "../models/response.model";
+import { TBaseResponse } from "../dto/response.dto";
 import { ReplyError } from "ioredis"
 
 export default (error: TError, set: TSet ) =>

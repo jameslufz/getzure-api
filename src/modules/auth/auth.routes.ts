@@ -5,4 +5,5 @@ import { RouteContext } from "@/shared/types/context";
 
 export const authRoute = new Elysia<"/auth", RouteContext>({ prefix: "/auth" })
 .use(AuthModels)
-.get("/otp/:phoneNumber", ({ params, db, redis }) => authHandler.getOtp(db, redis, params), { params: "getOtpParam" })
+.post("/otp/request", ({ body, db, redis }) => authHandler.requestOtp(db, redis, body), { body: "requestOtpBody" })
+.post("/otp/verifications", ({ body, db, redis }) => authHandler.otpVerifications(db, redis, body), { body: "otpVerificationsBody" })

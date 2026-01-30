@@ -1,6 +1,6 @@
 import { BadRequestException, UnprocessableContentException } from "@/shared/exceptions/http.exception";
 import { CheckExistsPhoneNumber, RequestOtpTotal } from "./auth.interfaces";
-import { TOtpVerificationsRequestBody, TRequestedOtp, TRequestOtpRequestBody, TRequestOtpResponseData } from "./auth.models";
+import { TOtpVerificationsRequestBody, TRegisterRequestBody, TRequestedOtp, TRequestOtpRequestBody, TRequestOtpResponseData } from "./auth.models";
 import type { Pool } from "mysql2/promise"
 import { randNumber, randString } from "@/shared/utils/randoms";
 import { v4 as uuid } from "uuid"
@@ -102,7 +102,58 @@ export const otpVerifications = async (db: Pool, redis: Redis, b: TOtpVerificati
 
     await Promise.all([
         db.execute("update otp set is_success = 1, updated_date = ? where phone_number = ? and is_timeout is null and is_success is null", [ new Date(), b.phoneNumber ]),
-        redis.del(CACHE_OTP_REQUESTED)
+        redis.del(CACHE_OTP_REQUESTED),
+        redis.setex(`otpVerifications:OTP_VERIFIED:${b.phoneNumber}`, 900, 1)
+    ])
+
+    return Ok()
+}
+
+export const register = async (db: Pool, redis: Redis, b: TRegisterRequestBody): Promise<BaseResponse> =>
+{
+    const validateEmailRFC5322Pattern = /(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])/
+    if(!validateEmailRFC5322Pattern.test(b.email))
+    {
+        throw new BadRequestException("รูปแบบอีเมลไม่ถูกต้อง กรุณาตรวจสอบ", "INVALID_EMAIL_PATTERN")
+    }
+
+    if(!/[0-9]{10}/gi.test(b.phoneNumber))
+    {
+        throw new UnprocessableContentException("เบอร์โทรศัพท์ต้องเป็นตัวเลขและมี 10 หลักเท่านั้น", "INVALID_PHONE_NUMB_PATTERN")
+    }
+
+    if(/[ก-๙]+/gi.test(b.password))
+    {
+        throw new UnprocessableContentException("รหัสผ่านไม่สามารถมีภาษาไทยได้", "INVALID_PWD_PATTERN")
+    }
+
+    if(!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/gi.test(b.password))
+    {
+        throw new UnprocessableContentException("รหัสผ่านต้องมีอย่างน้อย 8 หลัก และประกอบด้วยอักษร A-Z ทั้งพิมพ์เล็กและพิมพ์ใหญ่ ตัวเลขและอักษรพิเศษ", "INVALID_PWD_PATTERN")
+    }
+
+    if(b.password !== b.confirmPassword)
+    {
+        throw new UnprocessableContentException("รหัสผ่านไม่ตรงกัน", "BAD_CONFIRM_PWD")
+    }
+
+    const CACHE_OTP_VERIFIED = `otpVerifications:OTP_VERIFIED:${b.phoneNumber}`
+    const rawOtpVerified = await redis.exists(CACHE_OTP_VERIFIED)
+    if(!rawOtpVerified)
+    {
+        throw new BadRequestException("หมดเวลาทำรายการ โปรดทำรายการใหม่อีกครั้ง(กรุณาทำรายการภายใน 15 นาที หลังยืนยัน OTP)", "INVALID_OTP_NUMB")
+    }
+
+    const sanitizedFirstName = b.firstName.replace(/\s+/gi, "").trim()
+    const sanitizedMiddleName = (b.middleName && b.middleName !== "" ? b.middleName.replace(/\s+/gi, "").trim() : null)
+    const sanitizedLastName = b.lastName.replace(/\s+/gi, "").trim()
+
+    await db.execute("insert into users (email, phone_number, password, first_name, middle_name, last_name, join_date) values (?, ?, ?, ?, ?, ?, ?)", [b.email, b.phoneNumber, b.password, sanitizedFirstName, sanitizedMiddleName, sanitizedLastName, new Date()])
+    await redis.del([
+        CACHE_OTP_VERIFIED,
+        `requestOtp:OTP_REQUESTED:${b.phoneNumber}`,
+        `requestOtp:WAIT_OTP_RENEW:${b.phoneNumber}`,
+        `requestOtp:WAIT_OTP_TOMORROW:${b.phoneNumber}`,
     ])
 
     return Ok()

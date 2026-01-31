@@ -2,8 +2,8 @@ import { HTTPHeaders, StatusMap, ValidationError } from "elysia";
 import { HttpException } from "./http.exception";
 import { ElysiaCookie } from "elysia/dist/cookies";
 import type { TObject } from "@sinclair/typebox"
-import { TBaseResponse } from "../dto/response.dto";
 import { ReplyError } from "ioredis"
+import { BaseResponse } from "../types/response";
 
 export default (error: TError, set: TSet ) =>
 {
@@ -18,15 +18,15 @@ export default (error: TError, set: TSet ) =>
 
             return {
                 status: error.valueError.schema.code ?? "ERR_PARAMS",
-                message: (property.error ? property.error.toString() : undefined),
-            } satisfies TBaseResponse
+                message: (property.error ? property.error.toString() : ""),
+            } satisfies BaseResponse
         }
         else if('error' in error.valueError.schema)
         {
             return {
                 status: error.valueError.schema.code ?? "ERR_PARAMS",
-                message: (error.valueError.schema.error ? error.valueError.schema.error.toString() : undefined),
-            } satisfies TBaseResponse
+                message: (error.valueError.schema.error ? error.valueError.schema.error.toString() : ""),
+            } satisfies BaseResponse
         }
     }
 
@@ -38,7 +38,7 @@ export default (error: TError, set: TSet ) =>
         return {
             status: "INT_ERR_QC",
             message: `มีบางอย่างผิดพลาด โปรดติดต่อผู้ดูแลระบบ`,
-        } satisfies TBaseResponse
+        } satisfies BaseResponse
     }
 
     if(error instanceof ReplyError)
@@ -47,7 +47,7 @@ export default (error: TError, set: TSet ) =>
         return {
             status: "INT_ERR_RD",
             message: `มีบางอย่างผิดพลาด โปรดติดต่อผู้ดูแลระบบ`,
-        } satisfies TBaseResponse
+        } satisfies BaseResponse
     }
 
     if(error instanceof HttpException)
@@ -57,7 +57,7 @@ export default (error: TError, set: TSet ) =>
         return {
             status: error.statusCode,
             message: error.message,
-        } satisfies TBaseResponse
+        } satisfies BaseResponse
     }
 
     return {

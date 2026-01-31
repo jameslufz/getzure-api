@@ -1,13 +1,43 @@
+import { JWTPayloadInput, JWTPayloadSpec } from '@elysiajs/jwt';
 import Redis from 'ioredis';
 import type { Pool } from 'mysql2/promise';
+import { JWTVerifyOptions } from "jose"
 
 export interface RouteContext
 {
     decorator: {
         db: Pool
         redis: Redis
+        accessTokenWritter: JWTSign
+        accessTokenReader: JWTVerify
+        refreshTokenWritter: JWTSign
+        refreshTokenReader: JWTVerify
     }
     store: {}
     derive: {}
     resolve: {}
 }
+
+type NormalizedClaim = 'nbf' | 'exp' | 'iat';
+type AllowClaimValue = string | number | boolean | null | undefined | AllowClaimValue[] | {
+    [key: string]: AllowClaimValue;
+};
+type ClaimType = Record<string, AllowClaimValue>;
+export type JWTSignFn = (signValue: Omit<ClaimType, NormalizedClaim> & JWTPayloadInput) => Promise<string>;
+export type JWTVerifyFn = (jwt?: string, options?: JWTVerifyOptions) => Promise<false | (ClaimType & Omit<JWTPayloadSpec, never>)>;
+export type JWTSign = { sign: JWTSignFn }
+export type JWTVerify = { verify: JWTVerifyFn }
+export type JWTCustom = {
+    accessTokenWritter: {
+        sign: JWTSignFn
+    };
+    accessTokenReader: {
+        verify: JWTVerifyFn
+    };
+    refreshTokenWritter: {
+        sign: JWTSignFn
+    };
+    refreshTokenReader: {
+        verify: JWTVerifyFn
+    };
+};

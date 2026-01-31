@@ -1,6 +1,6 @@
-import { BadRequestException, UnprocessableContentException } from "@/shared/exceptions/http.exception";
-import { CheckExistsPhoneNumber, RequestOtpTotal } from "./auth.interfaces";
-import { TOtpVerificationsRequestBody, TRegisterRequestBody, TRequestedOtp, TRequestOtpRequestBody, TRequestOtpResponseData } from "./auth.models";
+import { BadRequestException, InternalServerErrorException, UnprocessableContentException } from "@/shared/exceptions/http.exception";
+import { CheckExistsPhoneNumber, GetUserData, RequestOtpTotal } from "./auth.interfaces";
+import { TLoginRequestBody, TLoginResponseBody, TOtpVerificationsRequestBody, TRegisterRequestBody, TRequestedOtp, TRequestOtpRequestBody, TRequestOtpResponseData } from "./auth.models";
 import type { Pool } from "mysql2/promise"
 import { randNumber, randString } from "@/shared/utils/randoms";
 import { v4 as uuid } from "uuid"
@@ -8,6 +8,9 @@ import Redis from "ioredis"
 import dayjs from "dayjs"
 import { Ok } from "@/shared/utils/response";
 import { BaseResponse } from "@/shared/types/response";
+import * as argon2 from "argon2"
+import { JWTCustom } from "@/shared/types/context";
+import { JWTWritters } from "@/shared/utils/jwt";
 
 export const requestOtp = async (db: Pool, redis: Redis, b: TRequestOtpRequestBody): Promise<BaseResponse<TRequestOtpResponseData>> =>
 {
@@ -86,7 +89,6 @@ export const otpVerifications = async (db: Pool, redis: Redis, b: TOtpVerificati
 
     if(b.phoneNumber !== requestedOtp.phoneNumber)
     {
-        console.log(b.phoneNumber, requestedOtp.phoneNumber)
         throw new BadRequestException("หมายเลขเบอร์โทรศัพท์ไม่ตรงกัน โปรดลองใหม่อีกครั้ง", "INVALID_OTP_PHONE_NUMB")
     }
 
@@ -148,7 +150,9 @@ export const register = async (db: Pool, redis: Redis, b: TRegisterRequestBody):
     const sanitizedMiddleName = (b.middleName && b.middleName !== "" ? b.middleName.replace(/\s+/gi, "").trim() : null)
     const sanitizedLastName = b.lastName.replace(/\s+/gi, "").trim()
 
-    await db.execute("insert into users (email, phone_number, password, first_name, middle_name, last_name, join_date) values (?, ?, ?, ?, ?, ?, ?)", [b.email, b.phoneNumber, b.password, sanitizedFirstName, sanitizedMiddleName, sanitizedLastName, new Date()])
+    const hashedPassword = await argon2.hash(b.password)
+
+    await db.execute("insert into users (email, phone_number, password, first_name, middle_name, last_name, join_date) values (?, ?, ?, ?, ?, ?, ?)", [b.email, b.phoneNumber, hashedPassword, sanitizedFirstName, sanitizedMiddleName, sanitizedLastName, new Date()])
     await redis.del([
         CACHE_OTP_VERIFIED,
         `requestOtp:OTP_REQUESTED:${b.phoneNumber}`,
@@ -157,4 +161,44 @@ export const register = async (db: Pool, redis: Redis, b: TRegisterRequestBody):
     ])
 
     return Ok()
+}
+
+export const login = async (db: Pool, redis: Redis, jwt: JWTWritters, b: TLoginRequestBody): Promise<BaseResponse<TLoginResponseBody>> =>
+{
+    const [[user]] = await db.query<GetUserData[]>(`
+        select email,
+            phone_number as phoneNumber,
+            password,
+            username,
+            first_name as firstName,
+            middle_name as middleName,
+            last_name as lastName,
+            join_date as joinDate
+        from users
+        where username = ? or email = ? or phone_number = ?
+    `, [ b.username, b.username, b.username ])
+    if(!user)
+    {
+        throw new UnprocessableContentException("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", "INVALID_USER_PWD")
+    }
+
+    if(!user.password)
+    {
+        throw new InternalServerErrorException("เกิดเหตุขัดข้องขณะเข้าสู่ระบบ", "ERR_PWD_MISSING")
+    }
+
+    const isCorrectPassword = await argon2.verify(user.password, b.password)
+    if(!isCorrectPassword)
+    {
+        throw new UnprocessableContentException("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", "INVALID_USER_PWD")
+    }
+
+    delete user.password
+
+    const [accessToken, refreshToken] = await Promise.all([
+        jwt.access.sign(user),
+        jwt.refresh.sign(user),
+    ])
+
+    return Ok<TLoginResponseBody>({ accessToken, refreshToken })
 }

@@ -3,11 +3,18 @@ import { authRoute } from "@/modules/auth/auth.routes";
 import handleException from "./shared/exceptions/handle.exception";
 import { masterDatabase } from "./shared/database/mysql.database";
 import redisDatabase from "./shared/database/redis.database";
+import { jwtAccessTokenReader, jwtAccessTokenWritter, jwtRefreshTokenReader, jwtRefreshTokenWritter } from "./shared/utils/jwt";
 
 const app = new Elysia({ prefix: "/api/v1" })
 .onError(({ error, set, }) => handleException(error as ValidationError, set))
 .use(masterDatabase())
 .use(redisDatabase())
+
+.use(jwtAccessTokenWritter())
+.use(jwtAccessTokenReader())
+.use(jwtRefreshTokenWritter())
+.use(jwtRefreshTokenReader())
+
 .use(authRoute)
 .listen(3000);
 

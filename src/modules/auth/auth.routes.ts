@@ -5,6 +5,19 @@ import { RouteContext } from "@/shared/types/context";
 
 export const authRoute = new Elysia<"/auth", RouteContext>({ prefix: "/auth" })
 .use(AuthModels)
-.post("/otp/request", ({ body, db, redis }) => authHandler.requestOtp(db, redis, body), { body: "requestOtpBody" })
-.post("/otp/verifications", ({ body, db, redis }) => authHandler.otpVerifications(db, redis, body), { body: "otpVerificationsBody" })
-.post("/register", ({ body, db, redis }) => authHandler.register(db, redis, body), { body: "registerBody" })
+.post("/otp/request",
+    ({ body, db, redis }) => authHandler.requestOtp(db, redis, body),
+    { body: "requestOtpBody" }
+)
+.post("/otp/verifications",
+    ({ body, db, redis }) => authHandler.otpVerifications(db, redis, body),
+    { body: "otpVerificationsBody" }
+)
+.post("/register",
+    ({ body, db, redis }) => authHandler.register(db, redis, body),
+    { body: "registerBody" }
+)
+.post("/login",
+    ({ body, db, redis, accessTokenWritter: access, refreshTokenWritter: refresh }) => authHandler.login(db, redis, {access, refresh}, body),
+    { body: "loginBody" }
+)

@@ -32,11 +32,23 @@ const registerRequestBody = t.Object({
     lastName: t.String({ error: "กรุณาระบุนามสกุล", code: "MISS_LAST_NAME" }),
 })
 
+const loginRequestBody = t.Object({
+    username: t.String({ error: "กรุณาระบุชื่อผู้ใช้ เบอร์โทรศัพท์ หรืออีเมล์", code: "MISS_USERNAME" }),
+    password: t.String({ error: "กรุณากรอกรหัสผ่าน", code: "MISS_PWD" }),
+})
+
+const loginResponseBody = t.Object({
+    accessToken: t.String(),
+    refreshToken: t.String(),
+})
+
+
 const AuthModels = new Elysia()
 .model({
     requestOtpBody: requestOtpRequestBody,
     otpVerificationsBody: otpVerificationsRequestBody,
     registerBody: registerRequestBody,
+    loginBody: loginRequestBody,
 })
 
 export default AuthModels
@@ -48,3 +60,6 @@ export type TRequestOtpResponseData = typeof requestOtpResponseData.static
 export type TOtpVerificationsRequestBody = typeof otpVerificationsRequestBody.static
 
 export type TRegisterRequestBody = typeof registerRequestBody.static
+
+export type TLoginRequestBody = typeof loginRequestBody.static
+export type TLoginResponseBody = typeof loginResponseBody.static

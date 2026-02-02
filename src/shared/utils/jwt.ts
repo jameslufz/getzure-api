@@ -1,11 +1,15 @@
 import jwt from "@elysiajs/jwt"
-import fs from "fs/promises"
 import { importPKCS8, importSPKI } from "jose"
-import { JWTSign } from "../types/context"
+import { JWTSign, JWTVerify } from "../types/context.type"
 
 export type JWTWritters = {
     access: JWTSign
     refresh: JWTSign
+}
+
+export type JWTReaders = {
+    access: JWTVerify
+    refresh: JWTVerify
 }
 
 export const jwtAccessTokenWritter = async () =>
@@ -48,7 +52,7 @@ export const jwtRefreshTokenWritter = async () =>
         alg: "EdDSA",
         secret: refreshTokenPrivate,
         iat: true,
-        exp: "2h",
+        exp: Math.floor(Number(new Date()) / 1000) + 3600 + 300,
         nbf: "1h"
     })
 }

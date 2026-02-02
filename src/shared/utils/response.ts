@@ -1,10 +1,19 @@
-import { BaseResponse } from "@/shared/types/response";
+import { BaseResponse } from "@/shared/types/response.type";
 
-export const Ok = <T = undefined>(data?: T, message: string = "success."): BaseResponse<T> =>
-{
-    return {
-        status: "OK",
-        message,
-        data,
-    }
+const Ok = <T = undefined>(data?: T, message: string = "success."): BaseResponse<T> => ({
+    status: "OK",
+    message,
+    data,
+})
+
+const Error = (message: string, status: string = "INTERNAL_ERR"): BaseResponse => ({
+    status,
+    message,
+})
+
+const responseBuilder = {
+    Ok,
+    Error
 }
+
+export default responseBuilder

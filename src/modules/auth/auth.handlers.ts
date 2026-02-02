@@ -1,16 +1,17 @@
 import { BadRequestException, InternalServerErrorException, UnprocessableContentException } from "@/shared/exceptions/http.exception";
-import { CheckExistsPhoneNumber, GetUserData, RequestOtpTotal } from "./auth.interfaces";
 import { TLoginRequestBody, TLoginResponseBody, TOtpVerificationsRequestBody, TRegisterRequestBody, TRequestedOtp, TRequestOtpRequestBody, TRequestOtpResponseData } from "./auth.models";
 import type { Pool } from "mysql2/promise"
 import { randNumber, randString } from "@/shared/utils/randoms";
 import { v4 as uuid } from "uuid"
 import Redis from "ioredis"
 import dayjs from "dayjs"
-import { Ok } from "@/shared/utils/response";
-import { BaseResponse } from "@/shared/types/response";
+import responseBuilder from "@/shared/utils/response";
+import { BaseResponse } from "@/shared/types/response.type";
 import * as argon2 from "argon2"
-import { JWTCustom } from "@/shared/types/context";
 import { JWTWritters } from "@/shared/utils/jwt";
+import OtpRepository from "@/shared/repositories/otp/otp.repository";
+import UsersRepository from "@/shared/repositories/users/users.repository";
+import { GetUserData } from "@/shared/repositories/users/users.interface";
 
 export const requestOtp = async (db: Pool, redis: Redis, b: TRequestOtpRequestBody): Promise<BaseResponse<TRequestOtpResponseData>> =>
 {
@@ -40,16 +41,18 @@ export const requestOtp = async (db: Pool, redis: Redis, b: TRequestOtpRequestBo
         throw new UnprocessableContentException(`วันนี้คุณขอ OTP ครบ 3 ครั้งแล้ว สามารถทำรายการได้อีกครั้งใน ${hours} ชั่วโมง ${mins} นาที ${secs} วินาที`, "OVER_REQ_OTP")
     }
 
-    const [[ phoneNumber ]] = await db.query<CheckExistsPhoneNumber[]>("select count(phone_number) as isExists from users where phone_number = ?", [ b.phoneNumber ])
-    if(phoneNumber.isExists)
+    const otpRepo = new OtpRepository(db)
+
+    const isPhoneNumberExists = await otpRepo.isExistsPhoneNumber(b.phoneNumber)
+    if(isPhoneNumberExists)
     {
         throw new UnprocessableContentException(`เบอร์โทรศัพท์หมายเลข ${b.phoneNumber} มีผู้ใช้งานแล้ว`, "EXISTS_PHONE_NUMB")
     }
 
     const dateStart = dayjs().startOf("d")
     const dateEnd = dayjs().endOf("d")
-    const [[ requestOtp ]] = await db.query<RequestOtpTotal[]>("select count(id) as total from otp where phone_number = ? and (created_date between ? and ?)", [ b.phoneNumber, dateStart.toDate(), dateEnd.toDate() ])
-    if(requestOtp.total >= 3)
+    const requestedOtp = await otpRepo.requestedOtp(b.phoneNumber, dateStart.toDate(), dateEnd.toDate())
+    if(requestedOtp.total >= 3)
     {
         const tomorrow = Math.floor(Number(dayjs().add(1, "d").startOf("d").toDate()) / 1000)
         const now = Math.floor(Number(new Date()) / 1000)
@@ -60,20 +63,20 @@ export const requestOtp = async (db: Pool, redis: Redis, b: TRequestOtpRequestBo
     }
 
     await Promise.all([
-        db.execute("update otp set is_timeout = 1, updated_date = ? where phone_number = ? and is_timeout is null and is_success is null", [ new Date(), b.phoneNumber ]),
+        otpRepo.updateOtpTimeout(b.phoneNumber),
         redis.del(CACHE_OTP_REQUESTED_KEY)
     ])
 
     const otpNumber = randNumber(6)
     const otpRef = randString(6)
 
-    await db.execute("INSERT INTO otp (id, phone_number, otp_number, otp_ref, created_date) VALUES (?, ?, ?, ?, ?)", [uuid(), b.phoneNumber, otpNumber, otpRef, new Date()])
+    await otpRepo.createOtpRequest(uuid(), b.phoneNumber, otpNumber, otpRef)
     await Promise.all([
         redis.setex(CACHE_OTP_REQUESTED_KEY, 180, JSON.stringify({ phoneNumber: b.phoneNumber, otpNumber, otpRef })),
         redis.setex(CACHE_WAIT_OTP_RENEW_KEY, 60, 1),
     ])
 
-    return Ok<TRequestOtpResponseData>({ otpRef })
+    return responseBuilder.Ok<TRequestOtpResponseData>({ otpRef })
 }
 
 export const otpVerifications = async (db: Pool, redis: Redis, b: TOtpVerificationsRequestBody): Promise<BaseResponse> =>
@@ -102,13 +105,14 @@ export const otpVerifications = async (db: Pool, redis: Redis, b: TOtpVerificati
         throw new BadRequestException("หมายเลข OTP ไม่ถูกต้อง โปรดลองใหม่อีกครั้ง", "INVALID_OTP_NUMB")
     }
 
+    const otpRepo = new OtpRepository(db)
+    await otpRepo.updateOtpSuccess(b.phoneNumber)
     await Promise.all([
-        db.execute("update otp set is_success = 1, updated_date = ? where phone_number = ? and is_timeout is null and is_success is null", [ new Date(), b.phoneNumber ]),
         redis.del(CACHE_OTP_REQUESTED),
         redis.setex(`otpVerifications:OTP_VERIFIED:${b.phoneNumber}`, 900, 1)
     ])
 
-    return Ok()
+    return responseBuilder.Ok()
 }
 
 export const register = async (db: Pool, redis: Redis, b: TRegisterRequestBody): Promise<BaseResponse> =>
@@ -152,7 +156,8 @@ export const register = async (db: Pool, redis: Redis, b: TRegisterRequestBody):
 
     const hashedPassword = await argon2.hash(b.password)
 
-    await db.execute("insert into users (email, phone_number, password, first_name, middle_name, last_name, join_date) values (?, ?, ?, ?, ?, ?, ?)", [b.email, b.phoneNumber, hashedPassword, sanitizedFirstName, sanitizedMiddleName, sanitizedLastName, new Date()])
+    const usersRepo = new UsersRepository(db)
+    await usersRepo.createUser(b.email, b.phoneNumber, hashedPassword, sanitizedFirstName, sanitizedMiddleName, sanitizedLastName)
     await redis.del([
         CACHE_OTP_VERIFIED,
         `requestOtp:OTP_REQUESTED:${b.phoneNumber}`,
@@ -160,23 +165,13 @@ export const register = async (db: Pool, redis: Redis, b: TRegisterRequestBody):
         `requestOtp:WAIT_OTP_TOMORROW:${b.phoneNumber}`,
     ])
 
-    return Ok()
+    return responseBuilder.Ok()
 }
 
 export const login = async (db: Pool, redis: Redis, jwt: JWTWritters, b: TLoginRequestBody): Promise<BaseResponse<TLoginResponseBody>> =>
 {
-    const [[user]] = await db.query<GetUserData[]>(`
-        select email,
-            phone_number as phoneNumber,
-            password,
-            username,
-            first_name as firstName,
-            middle_name as middleName,
-            last_name as lastName,
-            join_date as joinDate
-        from users
-        where username = ? or email = ? or phone_number = ?
-    `, [ b.username, b.username, b.username ])
+    const usersRepo = new UsersRepository(db)
+    const user = await usersRepo.findOneUser(b.username)
     if(!user)
     {
         throw new UnprocessableContentException("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", "INVALID_USER_PWD")
@@ -200,5 +195,30 @@ export const login = async (db: Pool, redis: Redis, jwt: JWTWritters, b: TLoginR
         jwt.refresh.sign(user),
     ])
 
-    return Ok<TLoginResponseBody>({ accessToken, refreshToken })
+    await Promise.all([
+        redis.setex(`auth:access_token:${user.phoneNumber}`, 3600, 1),
+        redis.setex(`auth:refresh_token:${user.phoneNumber}`, 3600 + 300, 1),
+    ])
+
+    return responseBuilder.Ok<TLoginResponseBody>({ accessToken, refreshToken })
+}
+
+export const me = (user?: GetUserData) =>
+{
+    return responseBuilder.Ok(user)
+}
+
+export const refreshLogin = async (redis: Redis, jwt: JWTWritters, user: GetUserData,) =>
+{
+    const [accessToken, refreshToken] = await Promise.all([
+        jwt.access.sign(user),
+        jwt.refresh.sign(user),
+    ])
+
+    await Promise.all([
+        redis.setex(`auth:access_token:${user.phoneNumber}`, 3600, 1),
+        redis.setex(`auth:refresh_token:${user.phoneNumber}`, 3600 + 300, 1),
+    ])
+
+    return responseBuilder.Ok<TLoginResponseBody>({ accessToken, refreshToken })
 }

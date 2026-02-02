@@ -3,7 +3,7 @@ import { HttpException } from "./http.exception";
 import { ElysiaCookie } from "elysia/dist/cookies";
 import type { TObject } from "@sinclair/typebox"
 import { ReplyError } from "ioredis"
-import { BaseResponse } from "../types/response";
+import { BaseResponse } from "../types/response.type";
 
 export default (error: TError, set: TSet ) =>
 {
@@ -60,8 +60,10 @@ export default (error: TError, set: TSet ) =>
         } satisfies BaseResponse
     }
 
+    console.log(error)
+
     return {
-        status: 1001,
+        status: "INTERNAL_ERR",
         message: error.message,
     }
 }

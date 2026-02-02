@@ -2,8 +2,9 @@ import { JWTPayloadInput, JWTPayloadSpec } from '@elysiajs/jwt';
 import Redis from 'ioredis';
 import type { Pool } from 'mysql2/promise';
 import { JWTVerifyOptions } from "jose"
+import { Context } from 'elysia';
 
-export interface RouteContext
+export interface BaseContext
 {
     decorator: {
         db: Pool
@@ -24,7 +25,7 @@ type AllowClaimValue = string | number | boolean | null | undefined | AllowClaim
 };
 type ClaimType = Record<string, AllowClaimValue>;
 export type JWTSignFn = (signValue: Omit<ClaimType, NormalizedClaim> & JWTPayloadInput) => Promise<string>;
-export type JWTVerifyFn = (jwt?: string, options?: JWTVerifyOptions) => Promise<false | (ClaimType & Omit<JWTPayloadSpec, never>)>;
+export type JWTVerifyFn = <T = (ClaimType & Omit<JWTPayloadSpec, never>) | false>(jwt?: string, options?: JWTVerifyOptions) => Promise<false | T>;
 export type JWTSign = { sign: JWTSignFn }
 export type JWTVerify = { verify: JWTVerifyFn }
 export type JWTCustom = {
@@ -41,3 +42,5 @@ export type JWTCustom = {
         verify: JWTVerifyFn
     };
 };
+
+export type SetHttpStatus = Context["status"]

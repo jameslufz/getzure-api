@@ -11,7 +11,8 @@ import * as argon2 from "argon2"
 import { JWTWritters } from "@/shared/utils/jwt";
 import OtpRepository from "@/shared/repositories/otp/otp.repository";
 import UsersRepository from "@/shared/repositories/users/users.repository";
-import { GetUserData } from "@/shared/repositories/users/users.interface";
+import { UserData } from "@/shared/repositories/users/users.interface";
+import UserLoginLogsRepository from "@/shared/repositories/user-login-logs/user-login-logs.repository";
 
 export const requestOtp = async (db: Pool, redis: Redis, b: TRequestOtpRequestBody): Promise<BaseResponse<TRequestOtpResponseData>> =>
 {
@@ -168,8 +169,11 @@ export const register = async (db: Pool, redis: Redis, b: TRegisterRequestBody):
     return responseBuilder.Ok()
 }
 
-export const login = async (db: Pool, redis: Redis, jwt: JWTWritters, b: TLoginRequestBody): Promise<BaseResponse<TLoginResponseBody>> =>
+export const login = async (db: Pool, redis: Redis, jwt: JWTWritters, b: TLoginRequestBody, ipAddress: string | null, device?: string): Promise<BaseResponse<TLoginResponseBody>> =>
 {
+    const LOGIN_ATTEMP_KEY = `auth:login:attempt:${b.username}:${ipAddress}`
+    const attempAmount = await redis.incr(LOGIN_ATTEMP_KEY)
+
     const usersRepo = new UsersRepository(db)
     const user = await usersRepo.findOneUser(b.username)
     if(!user)
@@ -195,30 +199,35 @@ export const login = async (db: Pool, redis: Redis, jwt: JWTWritters, b: TLoginR
         jwt.refresh.sign(user),
     ])
 
+    const userLoginLogs = new UserLoginLogsRepository(db)
+
     await Promise.all([
-        redis.setex(`auth:access_token:${user.phoneNumber}`, 3600, 1),
-        redis.setex(`auth:refresh_token:${user.phoneNumber}`, 3600 + 300, 1),
+        userLoginLogs.createLogs(user.id, attempAmount, ipAddress, device),
+        redis.setex(`auth:access_token:${accessToken}`, 3600, 1),
     ])
 
     return responseBuilder.Ok<TLoginResponseBody>({ accessToken, refreshToken })
 }
 
-export const me = (user?: GetUserData) =>
+export const me = (user?: UserData) =>
 {
     return responseBuilder.Ok(user)
 }
 
-export const refreshLogin = async (redis: Redis, jwt: JWTWritters, user: GetUserData,) =>
+export const refreshLogin = async (redis: Redis, jwt: JWTWritters, user: UserData,) =>
 {
     const [accessToken, refreshToken] = await Promise.all([
         jwt.access.sign(user),
         jwt.refresh.sign(user),
     ])
 
-    await Promise.all([
-        redis.setex(`auth:access_token:${user.phoneNumber}`, 3600, 1),
-        redis.setex(`auth:refresh_token:${user.phoneNumber}`, 3600 + 300, 1),
-    ])
+    await redis.setex(`auth:access_token:${accessToken}`, 3600, 1)
 
     return responseBuilder.Ok<TLoginResponseBody>({ accessToken, refreshToken })
+}
+
+export const invokeToken = async (redis: Redis, accessToken?: string) =>
+{
+    await redis.del(`auth:access_token:${accessToken}`)
+    return responseBuilder.Ok()
 }

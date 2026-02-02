@@ -1,5 +1,5 @@
 import { Pool } from "mysql2/promise"
-import { GetUserData } from "./users.interface"
+import { UserData } from "./users.interface"
 
 class UsersRepository
 {
@@ -14,10 +14,11 @@ class UsersRepository
         return this.db.execute("insert into users (email, phone_number, password, first_name, middle_name, last_name, created_date) values (?, ?, ?, ?, ?, ?, ?)", [email, phoneNumber, password, firstName, middleName, lastName, new Date()])
     }
 
-    async findOneUser(username: string): Promise<GetUserData | null>
+    async findOneUser(username: string): Promise<UserData | null>
     {
-        const [user] = await this.db.query<GetUserData[]>(`
-            select email,
+        const [user] = await this.db.query<UserData[]>(`
+            select id,
+                email,
                 phone_number as phoneNumber,
                 password,
                 username,

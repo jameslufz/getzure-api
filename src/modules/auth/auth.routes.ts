@@ -30,7 +30,7 @@ export const authRoute = new Elysia<"/auth", BaseContext>({ prefix: "/auth" })
     .use(jwtAccessTokenWritter())
     .use(jwtRefreshTokenWritter())
     .post("/",
-        ({ body, db, redis, accessTokenWritter: access, refreshTokenWritter: refresh }) => authHandler.login(db, redis, {access, refresh}, body),
+        ({ body, db, redis, accessTokenWritter: access, refreshTokenWritter: refresh, client }) => authHandler.login(db, redis, {access, refresh}, body, client.ip, client.device),
         { body: "loginBody" }
     )
 ))
@@ -39,10 +39,11 @@ export const authRoute = new Elysia<"/auth", BaseContext>({ prefix: "/auth" })
  * 
  * Need authorized routes.
  */
-.group("/me", (app) => (
+.group("", (app) => (
     app
     .use(authenticateUser)
-    .get("/", ({ user }) => authHandler.me(user))
+    .get("/me", ({ user }) => authHandler.me(user))
+    .delete("/token", ({ redis, bearer }) => authHandler.invokeToken(redis, bearer))
 ))
 
 /**

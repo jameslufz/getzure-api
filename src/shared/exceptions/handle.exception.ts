@@ -32,7 +32,7 @@ export default (error: TError, set: TSet ) =>
 
     if('sql' in error)
     {
-        const sqlMessage = ('sqlMessage' in error ? error.sqlMessage : "-")
+        const sqlMessage = ('sqlMessage' in error ? (error.sqlMessage ? error.sqlMessage : error.message) : "-")
         console.log(`\x1b[33m[${new Date().toLocaleString()}]\x1b[31m[ERROR] \x1b[0m${sqlMessage}`)
 
         return {

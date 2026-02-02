@@ -5,6 +5,7 @@ import { masterDatabase } from "./shared/database/mysql.database";
 import redisDatabase from "./shared/database/redis.database";
 import { jwtAccessTokenWritter, jwtRefreshTokenWritter } from "./shared/utils/jwt";
 import { orderRoute } from "./modules/order/order.routes";
+import clientInfo from "./shared/plugins/client.plugin";
 
 const app = new Elysia({ prefix: "/api/v1" })
 
@@ -15,6 +16,8 @@ const app = new Elysia({ prefix: "/api/v1" })
 
 .use(jwtAccessTokenWritter())
 .use(jwtRefreshTokenWritter())
+
+.use(clientInfo)
 
 .use(authRoute)
 .use(orderRoute)

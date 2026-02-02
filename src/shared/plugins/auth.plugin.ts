@@ -1,16 +1,23 @@
 import Elysia from "elysia";
 import bearer from "@elysiajs/bearer";
 import responseBuilder from "../utils/response";
-import { GetUserData } from "../repositories/users/users.interface";
+import { UserData } from "../repositories/users/users.interface";
 import { importSPKI, jwtVerify } from "jose";
 import { errors } from "jose";
+import { BaseContext } from "../types/context.type";
 
-export const authenticateUser = new Elysia()
+export const authenticateUser = new Elysia<string, BaseContext>()
 .use(bearer())
-.derive({ as: 'global' }, async ({ bearer, status }) => {
+.derive({ as: 'global' }, async ({ bearer, redis, status }) => {
     if(!bearer)
     {
         return status(401, responseBuilder.Error("คุณไม่ได้รับอนุญาตให้ใช้งาน", "UNAUTHORIZED"))
+    }
+
+    const accessTokenInServer = await redis.get(`auth:access_token:${bearer}`)
+    if(!accessTokenInServer)
+    {
+        return status(401, responseBuilder.Error("เซสซั่นหมดอายุ", "UNAUTHORIZED_TOKEN"))
     }
 
     const accessTokenPublicBase64 = process.env.JWT_ACCESS_PUBLIC as string
@@ -19,14 +26,14 @@ export const authenticateUser = new Elysia()
 
     try
     {
-        const jwt = await jwtVerify<GetUserData>(bearer, accessTokenPublic)
+        const jwt = await jwtVerify<UserData>(bearer, accessTokenPublic)
         return {
             user: jwt.payload
         }
     }
     catch
     {
-        return status(401, responseBuilder.Error("เซสซั่นหมดอายุ", "EXPIRED_SESSION"))
+        return status(401, responseBuilder.Error("เซสซั่นหมดอายุ", "EXPIRED_TOKEN"))
     }
 })
 
@@ -44,7 +51,7 @@ export const refreshToken = new Elysia()
 
     try
     {
-        const jwt = await jwtVerify<GetUserData>(bearer, refreshTokenPublic)
+        const jwt = await jwtVerify<UserData>(bearer, refreshTokenPublic)
 
         return {
             user: jwt.payload

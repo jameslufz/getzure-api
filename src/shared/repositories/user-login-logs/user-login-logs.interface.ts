@@ -2,7 +2,6 @@ import { RowDataPacket } from "mysql2";
 
 export interface UserData extends RowDataPacket
 {
-    id: number
     email: string
     phoneNumber: string
     password?: string

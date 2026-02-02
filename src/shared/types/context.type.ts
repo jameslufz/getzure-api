@@ -15,7 +15,12 @@ export interface BaseContext
         refreshTokenReader: JWTVerify
     }
     store: {}
-    derive: {}
+    derive: {
+        client: {
+            ip: string | null
+            device?: string
+        }
+    }
     resolve: {}
 }
 

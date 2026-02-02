@@ -3,7 +3,6 @@ import * as authHandler from "./auth.handlers"
 import AuthModels from "./auth.models";
 import { BaseContext } from "@/shared/types/context.type";
 import { authenticateUser, refreshToken } from "@/shared/plugins/auth.plugin";
-import bearer from "@elysiajs/bearer";
 import { jwtAccessTokenWritter, jwtRefreshTokenWritter } from "@/shared/utils/jwt";
 
 export const authRoute = new Elysia<"/auth", BaseContext>({ prefix: "/auth" })
@@ -30,7 +29,14 @@ export const authRoute = new Elysia<"/auth", BaseContext>({ prefix: "/auth" })
     .use(jwtAccessTokenWritter())
     .use(jwtRefreshTokenWritter())
     .post("/",
-        ({ body, db, redis, accessTokenWritter: access, refreshTokenWritter: refresh, client }) => authHandler.login(db, redis, {access, refresh}, body, client.ip, client.device),
+        ({
+            body,
+            db,
+            redis,
+            accessTokenWritter: access,
+            refreshTokenWritter: refresh,
+            client
+        }) => authHandler.login(db, redis, {access, refresh}, body, client.ip, client.device),
         { body: "loginBody" }
     )
 ))
@@ -43,7 +49,7 @@ export const authRoute = new Elysia<"/auth", BaseContext>({ prefix: "/auth" })
     app
     .use(authenticateUser)
     .get("/me", ({ user }) => authHandler.me(user))
-    .delete("/token", ({ redis, bearer }) => authHandler.invokeToken(redis, bearer))
+    .delete("/token", ({ db, redis, bearer, user, client }) => authHandler.invokeToken(db, redis, user.id, client.ip, bearer, client.device))
 ))
 
 /**

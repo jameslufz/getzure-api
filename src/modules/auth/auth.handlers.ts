@@ -12,7 +12,7 @@ import { JWTWritters } from "@/shared/utils/jwt";
 import OtpRepository from "@/shared/repositories/otp/otp.repository";
 import UsersRepository from "@/shared/repositories/users/users.repository";
 import { UserData } from "@/shared/repositories/users/users.interface";
-import UserLoginLogsRepository from "@/shared/repositories/user-login-logs/user-login-logs.repository";
+import ActivityLogsRepository from "@/shared/repositories/activity-logs/activity-logs.repository";
 
 export const requestOtp = async (db: Pool, redis: Redis, b: TRequestOtpRequestBody): Promise<BaseResponse<TRequestOtpResponseData>> =>
 {
@@ -199,11 +199,12 @@ export const login = async (db: Pool, redis: Redis, jwt: JWTWritters, b: TLoginR
         jwt.refresh.sign(user),
     ])
 
-    const userLoginLogs = new UserLoginLogsRepository(db)
+    const activityLogsRepo = new ActivityLogsRepository(db)
 
     await Promise.all([
-        userLoginLogs.createLogs(user.id, attempAmount, ipAddress, device),
+        activityLogsRepo.createLog("LOGIN_HISTORY", user.id, null, { attempAmount, ipAddress, device }),
         redis.setex(`auth:access_token:${accessToken}`, 3600, 1),
+        redis.del(LOGIN_ATTEMP_KEY)
     ])
 
     return responseBuilder.Ok<TLoginResponseBody>({ accessToken, refreshToken })
@@ -214,7 +215,7 @@ export const me = (user?: UserData) =>
     return responseBuilder.Ok(user)
 }
 
-export const refreshLogin = async (redis: Redis, jwt: JWTWritters, user: UserData,) =>
+export const refreshLogin = async (redis: Redis, jwt: JWTWritters, user: UserData) =>
 {
     const [accessToken, refreshToken] = await Promise.all([
         jwt.access.sign(user),
@@ -226,8 +227,14 @@ export const refreshLogin = async (redis: Redis, jwt: JWTWritters, user: UserDat
     return responseBuilder.Ok<TLoginResponseBody>({ accessToken, refreshToken })
 }
 
-export const invokeToken = async (redis: Redis, accessToken?: string) =>
+export const invokeToken = async (db: Pool, redis: Redis, userId: number, ipAddress: string | null, accessToken?: string, device?: string) =>
 {
-    await redis.del(`auth:access_token:${accessToken}`)
+    const activityLogsRepo = new ActivityLogsRepository(db)
+
+    await Promise.all([
+        activityLogsRepo.createLog("INVOKE_TOKEN", userId, {accessToken, ipAddress, device }, null),
+        redis.del(`auth:access_token:${accessToken}`),
+    ])
+
     return responseBuilder.Ok()
 }

@@ -8,6 +8,6 @@ export const orderRoute = new Elysia<"/order", BaseContext>({ prefix: "/order" }
 .use(OrderModels)
 .use(authenticateUser)
 .post("/create",
-    ({ db, redis, body }) => orderHandlers.createOrder(db, redis, body),
+    ({ db, redis, user, body }) => orderHandlers.createOrder(db, redis, user, body),
     { body: "createOrderRequestBody" }
 )

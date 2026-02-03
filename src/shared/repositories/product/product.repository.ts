@@ -15,11 +15,11 @@ class ProductRepository
      * 
      * @return Product's id.
      */
-    async createProduct(name: string, categoryId: number, priceAmount: string, discountAmount: string | null, description?: string, promotionId?: number): Promise<string>
+    async createProduct(name: string, categoryId: number, priceAmount: string, discountAmount: string | null, description?: string, campaignId?: number): Promise<string>
     {
         const id = uuid()
 
-        await this.db.execute("insert into product (id, name, description, category_id, price_amount, discount_amount, promotion_id, created_at) values (?, ?, ?, ?, ?, ?, ?, ?)", [ id, name, description, categoryId, priceAmount, discountAmount, promotionId, new Date() ])
+        await this.db.execute("insert into product (id, name, description, category_id, price_amount, discount_amount, campaign_id, created_at) values (?, ?, ?, ?, ?, ?, ?, ?)", [ id, name, description, categoryId, priceAmount, discountAmount, campaignId, new Date() ])
 
         return id
     }

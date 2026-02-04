@@ -19,7 +19,13 @@ class ProductRepository
     {
         const id = uuid()
 
-        await this.db.execute("insert into product (id, name, description, category_id, price_amount, discount_amount, campaign_id, created_at) values (?, ?, ?, ?, ?, ?, ?, ?)", [ id, name, description, categoryId, priceAmount, discountAmount, campaignId, new Date() ])
+        await this.db.execute(`
+            insert into product
+            (id, name, description, category_id, price_amount, discount_amount, campaign_id, created_at)
+            values
+            (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [ id, name, description, categoryId, priceAmount, discountAmount, campaignId ?? null, new Date() ]
+        )
 
         return id
     }

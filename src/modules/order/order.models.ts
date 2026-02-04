@@ -7,7 +7,9 @@ const createOrderRequestBody = t.Object({
     billAs: t.Enum({ seller: "seller", buyer: "buyer" }, { error: "กรุณาเลือกประเภทผู้ออกบิล" }),
 
     description: t.Optional( t.String() ),
-    campaignCode: t.Optional( t.String() ),
+    campaignCode: t.Null(
+        t.Optional( t.String() )
+    ),
 })
 
 const OrderModels = new Elysia()

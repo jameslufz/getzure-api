@@ -10,6 +10,7 @@
     "@elysiajs/jwt": "^1.4.0",
     "argon2": "^0.44.0",
     "dayjs": "^1.11.19",
+    "decimal.js": "^10.6.0",
     "elysia": "latest",
     "ioredis": "^5.9.2",
     "jose": "^6.1.3",

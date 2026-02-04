@@ -1,5 +1,6 @@
 import { Pool } from "mysql2/promise"
-import { CheckExistsPhoneNumber, RequestOtpTotal } from "./otp.interface"
+import { CheckExistsPhoneNumber } from "./otp.interface"
+import { QueryCount } from "../base.repository"
 
 class OtpRepository
 {
@@ -15,9 +16,9 @@ class OtpRepository
         return data.isExists === 1
     }
 
-    async requestedOtp(phoneNumber: string, dateStart: Date, dateEnd: Date): Promise<RequestOtpTotal>
+    async requestedOtp(phoneNumber: string, dateStart: Date, dateEnd: Date): Promise<QueryCount>
     {
-        const [[ data ]] = await this.db.query<RequestOtpTotal[]>("select count(id) as total from otp where phone_number = ? and (created_date between ? and ?)", [ phoneNumber, dateStart, dateEnd ])
+        const [[ data ]] = await this.db.query<QueryCount[]>("select count(id) as total from otp where phone_number = ? and (created_date between ? and ?)", [ phoneNumber, dateStart, dateEnd ])
         return data
     }
 
